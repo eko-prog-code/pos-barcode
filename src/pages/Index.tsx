@@ -56,7 +56,7 @@ const Index = () => {
             return {
             id: product.id,
             name: product.name,
-            price: product.price,
+            price: product.regularPrice,
             barcode: product.barcode, // Tambahkan ini jika belum ada
             quantity: 1
           };
