@@ -53,7 +53,13 @@ const Index = () => {
         const itemRef = ref(db, `cart/${CART_ID}/items/${product.id}`);
         const transactionResult = await runTransaction(itemRef, (currentItem) => {
           if (currentItem === null) {
-            return { ...product, quantity: 1 };
+            return {
+            id: product.id,
+            name: product.name,
+            price: product.price,
+            barcode: product.barcode, // Tambahkan ini jika belum ada
+            quantity: 1
+          };
           } else {
             return { ...currentItem, quantity: currentItem.quantity + 1 };
           }
