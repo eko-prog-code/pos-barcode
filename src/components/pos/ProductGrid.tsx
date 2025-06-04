@@ -36,9 +36,11 @@ const ProductGrid = ({
   });
   const { toast } = useToast();
 
-  const filteredProducts = products.filter((product) =>
-    product.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Tambahkan guard: hanya filter jika product.name ada dan bertipe string
+  const filteredProducts = products.filter((product) => {
+    if (typeof product.name !== "string") return false;
+    return product.name.toLowerCase().includes(searchQuery.toLowerCase());
+  });
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
@@ -56,7 +58,6 @@ const ProductGrid = ({
         ...editingProduct,
         name: editForm.name,
         regularPrice: parseFloat(editForm.regularPrice),
-        // properti stok tidak diubah karena tidak ditampilkan
       };
 
       await updateProduct(updatedProduct);
@@ -85,9 +86,10 @@ const ProductGrid = ({
           className="pl-9"
         />
       </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredProducts.map((product) => (
-          <Card key={product.id} className="p-4 relative">
+          <Card key={product.id ?? product.barcode} className="p-4 relative">
             {onDeleteProduct && (
               <Button
                 variant="ghost"
@@ -103,7 +105,6 @@ const ProductGrid = ({
               <p className="text-lg font-semibold">
                 {formatIDR(product.regularPrice)}
               </p>
-              {/* Informasi stok telah dihilangkan */}
             </div>
             <div className="flex gap-2">
               {showEditButton && (
@@ -153,7 +154,6 @@ const ProductGrid = ({
                 type="number"
               />
             </div>
-            {/* Field stok telah dihapus */}
             <Button onClick={handleUpdate} className="w-full">
               Update
             </Button>
