@@ -35,16 +35,27 @@ const Cart = () => {
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [showBuyerForm, setShowBuyerForm] = useState(false);
 
-  // Ambil data cart secara realtime dari Firebase
+  // 1) Ambil data cart secara realtime dari Firebase
   useEffect(() => {
     const itemsRef = ref(db, "cart/global/items");
     const unsubscribe = onValue(itemsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const itemsArray: CartItem[] = Object.keys(data).map((key) => ({
-          ...data[key],
-          id: data[key].id || key,
-        }));
+        // Pastikan field price disimpan sebagai number. Jika string, parseFloat.
+        const itemsArray: CartItem[] = Object.keys(data).map((key) => {
+          const raw = data[key];
+          return {
+            id: raw.id || key,
+            name: raw.name,
+            barcode: raw.barcode,
+            quantity: raw.quantity,
+            // Jika raw.price ter-serialize sebagai string, kita pakai parseFloat:
+            price:
+              typeof raw.price === "string"
+                ? parseFloat(raw.price)
+                : raw.price,
+          } as CartItem;
+        });
         setItems(itemsArray);
       } else {
         setItems([]);
@@ -53,7 +64,7 @@ const Cart = () => {
     return () => unsubscribe();
   }, []);
 
-  // Fungsi update quantity: gunakan identifier (barcode atau push key) sesuai dengan data item
+  // 2) Update quantity di cart
   const onUpdateQuantity = async (productId: string, newQuantity: number) => {
     try {
       const itemRef = ref(db, `cart/global/items/${productId}`);
@@ -68,12 +79,15 @@ const Cart = () => {
 
       toast({ title: "Quantity berhasil diperbarui" });
     } catch (error) {
-      toast({ title: "Gagal memperbarui quantity", variant: "destructive" });
+      toast({
+        title: "Gagal memperbarui quantity",
+        variant: "destructive",
+      });
       console.error(error);
     }
   };
 
-  // Fungsi hapus item dari cart
+  // 3) Hapus satu item dari cart
   const onRemoveItem = async (productId: string) => {
     try {
       const itemRef = ref(db, `cart/global/items/${productId}`);
@@ -89,7 +103,7 @@ const Cart = () => {
     }
   };
 
-  // Fungsi untuk mengosongkan cart
+  // 4) Kosongkan keseluruhan cart
   const onClearCart = async () => {
     try {
       const cartRef = ref(db, "cart/global/items");
@@ -105,12 +119,14 @@ const Cart = () => {
     }
   };
 
-  // Hitung subtotal (regularPrice dan quantity masing-masing number)
-  const subtotal = items.reduce(
-    (sum, item) => sum + item.regularPrice * item.quantity,
-    0
-  );
+  // 5) Hitung subtotal: pastikan jangan sampai NaN
+  const subtotal = items.reduce((sum, item) => {
+    const unitPrice = isNaN(item.price) ? 0 : item.price;
+    const qty = isNaN(item.quantity) ? 0 : item.quantity;
+    return sum + unitPrice * qty;
+  }, 0);
 
+  // 6) Saat user mengetik angka kuantitas secara manual
   const handleQuantityChange = (productId: string, value: string) => {
     const quantity = parseInt(value);
     if (!isNaN(quantity) && quantity > 0) {
@@ -118,15 +134,17 @@ const Cart = () => {
     }
   };
 
+  // 7) Format input jumlah bayar agar otomatis menjadi "1.000", "10.000", dsb.
   const handleNumberBlur = (value: string, setter: (value: string) => void) => {
     const number = parseFloat(value.replace(/[,.]/g, ""));
     if (!isNaN(number)) {
       setter(number.toLocaleString("id-ID"));
     } else {
-      setter("0"); // Jika bukan angka, set ke "0"
+      setter("0");
     }
   };
 
+  // 8) Fungsi untuk mencetak struk (print)
   const handlePrintReceipt = () => {
     const printContent = document.getElementById("receipt-content");
     if (printContent) {
@@ -134,12 +152,12 @@ const Cart = () => {
       document.body.innerHTML = printContent.innerHTML;
       window.print();
       document.body.innerHTML = originalContents;
-      window.location.reload(); // Reload untuk mengembalikan state aplikasi React
+      window.location.reload(); // reload agar React kembali normal
     }
   };
 
+  // 9) Kirim struk ke WhatsApp
   const handleSendToWhatsApp = () => {
-    // Pastikan parseFloat fallback ke 0
     const paidNumeric = parseFloat(amountPaid.replace(/[,.]/g, "")) || 0;
     const changeNumeric = Math.max(paidNumeric - subtotal, 0);
 
@@ -159,7 +177,7 @@ ${items
   .map(
     (item) =>
       `${item.name} x ${item.quantity} = ${formatIDR(
-        item.regularPrice * item.quantity
+        item.price * item.quantity
       )}`
   )
   .join("\n")}
@@ -176,6 +194,7 @@ ${items
     window.open(whatsappUrl, "_blank");
   };
 
+  // 10) Selesaikan transaksi: simpan ke koleksi sales
   const handleCompleteSale = async () => {
     const paidAmount = parseFloat(amountPaid.replace(/[,.]/g, "")) || 0;
     if (!amountPaid || paidAmount < subtotal) {
@@ -221,22 +240,25 @@ ${items
         description: "Gagal menyimpan transaksi",
         variant: "destructive",
       });
+      console.error(error);
     }
   };
 
+  // 11) Tutup struk (modal) dan clear cart
   const handleCloseReceipt = () => {
     setShowReceipt(false);
     onClearCart();
     setAmountPaid("");
   };
 
-  // Hitung selisih antara jumlah bayar dan total penjualan
+  // 12) Hitung kembalian untuk ditampilkan di UI
   const paidAmountNum = parseFloat(amountPaid.replace(/[,.]/g, "")) || 0;
   const difference = paidAmountNum - subtotal;
 
   return (
     <>
       <div className="w-full md:w-96 bg-white border-l shadow-lg flex flex-col slide-in">
+        {/* Header */}
         <div className="p-4 border-b flex justify-between items-center bg-primary text-primary-foreground">
           <h2 className="text-xl font-bold">Penjualan</h2>
           <Button
@@ -249,6 +271,7 @@ ${items
           </Button>
         </div>
 
+        {/* List Item di Cart */}
         <div className="flex-1 overflow-auto p-4">
           {items.map((item) => (
             <div
@@ -258,7 +281,7 @@ ${items
               <div className="flex-1">
                 <h3 className="font-medium">{item.name}</h3>
                 <p className="text-sm text-muted-foreground">
-                  {formatIDR(item.regularPrice)}
+                  {formatIDR(item.price)}
                 </p>
               </div>
               <div className="flex items-center space-x-2">
@@ -300,10 +323,18 @@ ${items
               </div>
             </div>
           ))}
+
+          {/* Jika keranjang kosong */}
+          {items.length === 0 && (
+            <p className="text-center text-sm text-muted-foreground mt-4">
+              Keranjang kosong
+            </p>
+          )}
         </div>
 
+        {/* Bagian Total, Input Bayar, Kembalian, dan Tombol Selesaikan */}
         <div className="p-4 border-t bg-muted">
-          {/* Toggle form input pembeli */}
+          {/* Toggle form pembeli */}
           <div
             className="flex items-center justify-center cursor-pointer select-none"
             onClick={() => setShowBuyerForm((prev) => !prev)}
@@ -321,7 +352,7 @@ ${items
             )}
           </div>
 
-          {/* Form input pembeli */}
+          {/* Form input nama & WA pembeli */}
           <div
             className={`overflow-hidden transition-all duration-300 ${
               showBuyerForm ? "max-h-[200px] mt-4" : "max-h-0"
@@ -347,11 +378,14 @@ ${items
             </div>
           </div>
 
+          {/* Total */}
           <div className="flex justify-between mb-4">
             <span className="font-bold">Total:</span>
             <span className="font-bold">{formatIDR(subtotal)}</span>
           </div>
-          <div>
+
+          {/* Input Jumlah Bayar */}
+          <div className="mb-4">
             <label className="block text-sm font-medium mb-1">
               Jumlah Bayar
             </label>
@@ -364,12 +398,18 @@ ${items
               className="w-full"
             />
           </div>
-          <div className="flex justify-between text-sm">
+
+          {/* Kembalian */}
+          <div className="flex justify-between text-sm mb-4">
             <span>Kembalian:</span>
-            <span className={difference < 0 ? "text-red-500 font-bold" : ""}>
+            <span
+              className={difference < 0 ? "text-red-500 font-bold" : "font-bold"}
+            >
               {formatIDR(Math.max(difference, 0))}
             </span>
           </div>
+
+          {/* Tombol Selesaikan Transaksi */}
           <Button
             className="w-full"
             size="lg"
@@ -381,6 +421,7 @@ ${items
         </div>
       </div>
 
+      {/* Modal Struk Penjualan */}
       <Dialog open={showReceipt} onOpenChange={handleCloseReceipt}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -416,6 +457,7 @@ ${items
               })}
             </DialogDescription>
           </DialogHeader>
+
           <div id="receipt-content" className="space-y-4">
             <div className="space-y-2">
               <p>
@@ -431,7 +473,7 @@ ${items
                   <span>
                     {item.name} x {item.quantity}
                   </span>
-                  <span>{formatIDR(item.regularPrice * item.quantity)}</span>
+                  <span>{formatIDR(item.price * item.quantity)}</span>
                 </div>
               ))}
             </div>
@@ -445,7 +487,9 @@ ${items
             </div>
             <div className="flex justify-between">
               <span>Kembalian</span>
-              <span className={difference < 0 ? "text-red-500 font-bold" : ""}>
+              <span
+                className={difference < 0 ? "text-red-500 font-bold" : "font-bold"}
+              >
                 {formatIDR(Math.max(difference, 0))}
               </span>
             </div>
