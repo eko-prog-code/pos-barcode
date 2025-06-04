@@ -4,7 +4,16 @@ import { db } from "@/lib/firebase";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Minus, Plus, Trash2, X, Printer, Send, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Minus,
+  Plus,
+  Trash2,
+  X,
+  Printer,
+  Send,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { formatIDR } from "@/lib/currency";
 import { createSale } from "@/services/saleService";
 import {
@@ -96,6 +105,7 @@ const Cart = () => {
     }
   };
 
+  // Hitung subtotal (regularPrice dan quantity masing-masing number)
   const subtotal = items.reduce(
     (sum, item) => sum + item.regularPrice * item.quantity,
     0
@@ -112,6 +122,8 @@ const Cart = () => {
     const number = parseFloat(value.replace(/[,.]/g, ""));
     if (!isNaN(number)) {
       setter(number.toLocaleString("id-ID"));
+    } else {
+      setter("0"); // Jika bukan angka, set ke "0"
     }
   };
 
@@ -127,6 +139,10 @@ const Cart = () => {
   };
 
   const handleSendToWhatsApp = () => {
+    // Pastikan parseFloat fallback ke 0
+    const paidNumeric = parseFloat(amountPaid.replace(/[,.]/g, "")) || 0;
+    const changeNumeric = Math.max(paidNumeric - subtotal, 0);
+
     const trimmedNumber = whatsappNumber.trim();
     const formattedWhatsappNumber = trimmedNumber.startsWith("0")
       ? "62" + trimmedNumber.substring(1)
@@ -142,13 +158,15 @@ Time: ${new Date().toLocaleTimeString("id-ID")}
 ${items
   .map(
     (item) =>
-      `${item.name} x ${item.quantity} = ${formatIDR(item.regularPrice * item.quantity)}`
+      `${item.name} x ${item.quantity} = ${formatIDR(
+        item.regularPrice * item.quantity
+      )}`
   )
   .join("\n")}
 
 *Total:* ${formatIDR(subtotal)}
-*Paid:* ${formatIDR(parseFloat(amountPaid.replace(/[,.]/g, "")))}
-*Change:* ${formatIDR(Math.max(parseFloat(amountPaid.replace(/[,.]/g, "")) - subtotal, 0) || 0)}
+*Paid:* ${formatIDR(paidNumeric)}
+*Change:* ${formatIDR(changeNumeric)}
     `.trim();
 
     const whatsappUrl = `https://wa.me/${formattedWhatsappNumber.replace(
@@ -159,7 +177,8 @@ ${items
   };
 
   const handleCompleteSale = async () => {
-    if (!amountPaid || parseFloat(amountPaid.replace(/[,.]/g, "")) < subtotal) {
+    const paidAmount = parseFloat(amountPaid.replace(/[,.]/g, "")) || 0;
+    if (!amountPaid || paidAmount < subtotal) {
       toast({
         title: "Jumlah pembayaran tidak valid",
         description: "Mohon masukkan jumlah pembayaran yang valid",
@@ -177,7 +196,6 @@ ${items
       return;
     }
 
-    const paidAmount = parseFloat(amountPaid.replace(/[,.]/g, ""));
     const change = paidAmount - subtotal;
 
     const saleData: Omit<Sale, "id"> = {
@@ -293,16 +311,12 @@ ${items
             {showBuyerForm ? (
               <div className="flex items-center space-x-1">
                 <ChevronUp className="w-6 h-6 animate-pulse" />
-                <span className="text-sm font-semibold">
-                  Sembunyikan Form
-                </span>
+                <span className="text-sm font-semibold">Sembunyikan Form</span>
               </div>
             ) : (
               <div className="flex items-center space-x-1">
                 <ChevronDown className="w-6 h-6 animate-pulse" />
-                <span className="text-sm font-semibold">
-                  Tampilkan Form
-                </span>
+                <span className="text-sm font-semibold">Tampilkan Form</span>
               </div>
             )}
           </div>
@@ -353,7 +367,7 @@ ${items
           <div className="flex justify-between text-sm">
             <span>Kembalian:</span>
             <span className={difference < 0 ? "text-red-500 font-bold" : ""}>
-              {formatIDR(difference)}
+              {formatIDR(Math.max(difference, 0))}
             </span>
           </div>
           <Button
@@ -432,7 +446,7 @@ ${items
             <div className="flex justify-between">
               <span>Kembalian</span>
               <span className={difference < 0 ? "text-red-500 font-bold" : ""}>
-                {formatIDR(difference)}
+                {formatIDR(Math.max(difference, 0))}
               </span>
             </div>
           </div>
