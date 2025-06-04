@@ -1,6 +1,5 @@
-
 import { Link, useLocation } from "react-router-dom";
-import { ShoppingCart, Package, BarChart2, Users, LineChart } from "lucide-react";
+import { ShoppingCart, Package, BarChart2, Users, LineChart, Database } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -26,6 +25,11 @@ const items = [
     title: "Penjualan",
     path: "/sales",
     icon: BarChart2,
+  },
+  {
+    title: "Stok",
+    path: "/stock-status",
+    icon: Database, // ikon untuk Stock Status
   },
   {
     title: "Users",
