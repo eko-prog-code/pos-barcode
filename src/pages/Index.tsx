@@ -9,17 +9,16 @@ import {
   getDatabase,
   ref,
   onValue,
-  runTransaction, 
+  runTransaction,
   update,
   remove,
-  set
+  set,
 } from "firebase/database";
 
 const CART_ID = "global"; // ID cart bersama untuk semua perangkat
 
 const Index = () => {
   const [products, setProducts] = useState<Product[]>([]);
-  // Simpan cart sebagai object: { [productId]: CartItem }
   const [cartItems, setCartItems] = useState<{ [key: string]: CartItem }>({});
   const { toast } = useToast();
   const db = getDatabase();
@@ -37,34 +36,40 @@ const Index = () => {
     const cartRef = ref(db, `cart/${CART_ID}/items`);
     const unsubscribe = onValue(cartRef, (snapshot) => {
       const data = snapshot.val();
-      // Jika belum ada data, set sebagai object kosong
       setCartItems(data || {});
     });
     return () => unsubscribe();
   }, [db]);
 
-  // Fungsi addToCart tanpa menampilkan informasi stok ke pengguna
+  // ✅ Perbaikan addToCart
   const addToCart = async (product: Product) => {
     if (product.stock > 0) {
       try {
-        // Kurangi stok produk secara internal
         await updateProductStock(product.id, product.stock - 1);
-  
+
+        const price = Number(product.regularPrice); // ✅ Pastikan angka
+
         const itemRef = ref(db, `cart/${CART_ID}/items/${product.id}`);
         const transactionResult = await runTransaction(itemRef, (currentItem) => {
           if (currentItem === null) {
             return {
-            id: product.id,
-            name: product.name,
-            price: product.regularPrice,
-            barcode: product.barcode, // Tambahkan ini jika belum ada
-            quantity: 1
-          };
+              id: product.id,
+              name: product.name,
+              barcode: product.barcode || "", // ✅ Tambahkan barcode
+              price,
+              quantity: 1,
+              total: price * 1, // ✅ Tambahkan total
+            };
           } else {
-            return { ...currentItem, quantity: currentItem.quantity + 1 };
+            const newQty = currentItem.quantity + 1;
+            return {
+              ...currentItem,
+              quantity: newQty,
+              total: price * newQty, // ✅ Update total juga
+            };
           }
         });
-        
+
         if (transactionResult.committed) {
           toast({
             title: "Sukses",
@@ -86,7 +91,6 @@ const Index = () => {
         console.error("Error addToCart:", error);
       }
     } else {
-      // Pesan error tidak menampilkan informasi stok
       toast({
         title: "Error",
         description: "Produk tidak tersedia",
@@ -95,7 +99,6 @@ const Index = () => {
     }
   };
 
-  // Fungsi untuk memperbarui jumlah produk di keranjang
   const updateQuantity = async (productId: string, newQuantity: number) => {
     const product = products.find((p) => p.id === productId);
     const cartItem = cartItems[productId];
@@ -115,7 +118,8 @@ const Index = () => {
     try {
       await updateProductStock(productId, product.stock - difference);
       const itemRef = ref(db, `cart/${CART_ID}/items/${productId}`);
-      update(itemRef, { quantity: newQuantity });
+      const newTotal = Number(product.regularPrice) * newQuantity;
+      update(itemRef, { quantity: newQuantity, total: newTotal });
       toast({
         title: "Sukses",
         description: "Jumlah produk berhasil diperbarui",
@@ -185,11 +189,10 @@ const Index = () => {
           showEditButton={false}
         />
       </div>
-      {/* Karena komponen Cart sudah mengelola state dan fungsinya sendiri,
-          panggil Cart tanpa props tambahan */}
       <Cart />
     </div>
   );
 };
 
 export default Index;
+                  
